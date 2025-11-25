@@ -354,3 +354,29 @@ body {
     padding: 18px 14px 22px;
   }
 }
+
+.logo-upload {
+  margin-top: 8px;
+  font-size: 12px;
+}
+
+.logo-label {
+  display: block;
+  margin-bottom: 4px;
+  color: #6b7280;
+}
+
+.logo-preview {
+  margin-top: 6px;
+  padding: 6px;
+  border-radius: 12px;
+  background: #f9fafb;
+  border: 1px dashed #e5e7eb;
+  display: inline-flex;
+}
+
+.logo-preview-img {
+  max-height: 40px;
+  max-width: 140px;
+  object-fit: contain;
+}
