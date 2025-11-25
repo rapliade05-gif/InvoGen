@@ -141,11 +141,16 @@ body {
 
 /* Item rows */
 .item-row {
-  display: grid;
-  grid-template-columns: minmax(0, 2.3fr) minmax(0, 1.1fr) auto;
+  display: flex;
+  flex-direction: column;
   gap: 8px;
-  align-items: center;
-  margin-bottom: 8px;
+  margin-bottom: 14px;
+}
+
+.item-row .row-two {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  gap: 8px;
 }
 
 .item-main,
