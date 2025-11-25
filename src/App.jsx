@@ -33,7 +33,9 @@ export default function App() {
     const updated = invoiceData.items.filter((_, i) => i !== index);
     setInvoiceData({
       ...invoiceData,
-      items: updated.length ? updated : [{ description: "", qty: "1", amount: "" }],
+      items: updated.length
+        ? updated
+        : [{ description: "", qty: "1", amount: "" }],
     });
   };
 
@@ -68,6 +70,9 @@ export default function App() {
       maximumFractionDigits: 0,
     }).format(value || 0);
 
+  // ===============================
+  //          PDF Generator
+  // ===============================
   const generatePDF = () => {
     const doc = new jsPDF({ unit: "pt", format: "a4" });
     const pageWidth = doc.internal.pageSize.getWidth();
@@ -76,7 +81,7 @@ export default function App() {
     doc.setFillColor(32, 41, 64);
     doc.rect(0, 0, pageWidth, 100, "F");
 
-    // LOGO (kalau ada)
+    // LOGO
     if (invoiceData.logoDataUrl) {
       try {
         const imgType = invoiceData.logoDataUrl.includes("image/png")
@@ -91,7 +96,7 @@ export default function App() {
           52
         );
       } catch (e) {
-        console.warn("Gagal render logo di PDF:", e);
+        console.warn("Gagal render logo:", e);
       }
     }
 
@@ -100,9 +105,10 @@ export default function App() {
     doc.setFontSize(22);
     doc.text(invoiceData.businessName || "InvoGen Invoice", 40, 45);
 
-    doc.setFontSize(11);
+    doc.setFontSize(12);
     const today = new Date().toLocaleDateString("id-ID");
     doc.text(`Tanggal: ${today}`, 40, 63);
+
     if (invoiceData.businessAddress) {
       const addr = doc.splitTextToSize(
         invoiceData.businessAddress,
@@ -111,22 +117,22 @@ export default function App() {
       doc.text(addr, 40, 80);
     }
 
-    // BODY INFO
+    // BODY INFORMASI
     doc.setTextColor(33, 33, 33);
-    doc.setFontSize(11);
+    doc.setFontSize(12);
 
-    let y = 120;
+    let y = 130;
     doc.text(`Invoice No : ${invoiceData.invoiceNumber || "-"}`, 40, y);
     y += 18;
-    doc.text(`Ditagihkan ke : ${invoiceData.client || "-"}`, 40, y);
+    doc.text(`Ditagihkan Kepada : ${invoiceData.client || "-"}`, 40, y);
 
     // TABLE HEADER
     y += 30;
     const colNoX = 40;
     const colDescX = 60;
-    const colQtyX = pageWidth - 240;
-    const colPriceX = pageWidth - 170;
-    const colTotalX = pageWidth - 60;
+    const colQtyX = pageWidth - 260;
+    const colPriceX = pageWidth - 180;
+    const colTotalX = pageWidth - 70;
 
     doc.setFillColor(243, 244, 246);
     doc.rect(30, y - 18, pageWidth - 60, 26, "F");
@@ -139,35 +145,36 @@ export default function App() {
 
     y += 22;
 
+    // TABLE CONTENT
     invoiceData.items.forEach((item, index) => {
-      if (!item.description && !item.amount && !item.qty) return;
+      if (!item.description && !item.amount) return;
 
-      const qty = cleanNumber(item.qty || "0");
-      const price = cleanNumber(item.amount || "0");
+      const qty = cleanNumber(item.qty);
+      const price = cleanNumber(item.amount);
       const total = qty * price;
 
       doc.text(String(index + 1), colNoX, y);
       doc.text(item.description || "-", colDescX, y);
-      doc.text(String(qty || 0), colQtyX, y, { align: "right" });
+      doc.text(String(qty), colQtyX, y, { align: "right" });
       doc.text(formattedCurrency(price), colPriceX, y, { align: "right" });
       doc.text(formattedCurrency(total), colTotalX, y, { align: "right" });
 
       y += 20;
     });
 
-    // SUBTOTAL / TOTAL
+    // TOTAL
     y += 10;
     doc.line(30, y, pageWidth - 30, y);
-    y += 20;
+    y += 25;
 
-    doc.setFontSize(12);
+    doc.setFontSize(14);
     doc.text("Total", colPriceX, y);
     doc.text(formattedCurrency(subtotal), colTotalX, y, { align: "right" });
 
-    // NOTES
+    // CATATAN
     if (invoiceData.notes) {
-      y += 36;
-      doc.setFontSize(11);
+      y += 40;
+      doc.setFontSize(12);
       doc.text("Catatan:", 40, y);
       const splitNotes = doc.splitTextToSize(
         invoiceData.notes,
@@ -179,6 +186,9 @@ export default function App() {
     doc.save("invoice-invogen.pdf");
   };
 
+  // ===============================
+  //          UI RENDER
+  // ===============================
   return (
     <div className="app-root">
       <div className="app-card">
@@ -186,108 +196,113 @@ export default function App() {
           <div>
             <h1 className="app-title">InvoGen</h1>
             <p className="app-subtitle">
-              Modern invoice generator — simple, clean, dan terlihat profesional.
+              Modern Invoice Generator — Profesional, Simple, Keren.
             </p>
           </div>
-          <span className="app-badge">v1.1</span>
+          <span className="app-badge">v1.2</span>
         </header>
 
         <div className="app-layout">
-          {/* LEFT: FORM */}
+          {/* LEFT */}
           <div className="app-column">
+
+            {/* BUSINESS SECTION */}
             <section className="section">
-              <h2 className="section-title">Bisnis & Klien</h2>
-              <div className="field-grid">
-                <div className="field">
-                  <label>Nama Bisnis</label>
-                  <input
-                    className="input"
-                    placeholder="Nama usaha / brand"
-                    value={invoiceData.businessName}
-                    onChange={(e) =>
-                      updateField("businessName", e.target.value)
-                    }
-                  />
-                </div>
-                <div className="field">
-                  <label>No. Invoice</label>
-                  <input
-                    className="input"
-                    placeholder="Contoh: INV-001"
-                    value={invoiceData.invoiceNumber}
-                    onChange={(e) =>
-                      updateField("invoiceNumber", e.target.value)
-                    }
-                  />
-                </div>
+              <h2 className="section-title">Data Bisnis</h2>
+
+              <div className="field">
+                <label>Nama Bisnis</label>
+                <input
+                  className="input"
+                  placeholder="Nama usaha / brand"
+                  value={invoiceData.businessName}
+                  onChange={(e) =>
+                    updateField("businessName", e.target.value)
+                  }
+                />
               </div>
 
-              <div className="field-grid" style={{ marginTop: 8 }}>
-                <div className="field">
-                  <label>Alamat Bisnis</label>
-                  <textarea
-                    className="textarea"
-                    placeholder="Alamat lengkap bisnis untuk ditampilkan di invoice"
-                    value={invoiceData.businessAddress}
-                    onChange={(e) =>
-                      updateField("businessAddress", e.target.value)
-                    }
-                  />
-                </div>
-                <div className="field">
-                  <label>Nama Klien</label>
-                  <input
-                    className="input"
-                    placeholder="Nama klien / perusahaan"
-                    value={invoiceData.client}
-                    onChange={(e) => updateField("client", e.target.value)}
-                  />
-                  <div className="logo-upload">
-                    <label className="logo-label">Logo Bisnis (opsional)</label>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      className="input"
-                      onChange={handleLogoUpload}
+              <div className="field">
+                <label>Alamat Bisnis</label>
+                <textarea
+                  className="textarea"
+                  placeholder="Alamat bisnis"
+                  value={invoiceData.businessAddress}
+                  onChange={(e) =>
+                    updateField("businessAddress", e.target.value)
+                  }
+                />
+              </div>
+
+              <div className="field">
+                <label>Logo Bisnis (opsional)</label>
+                <input type="file" accept="image/*" onChange={handleLogoUpload} />
+                {invoiceData.logoDataUrl && (
+                  <div className="logo-preview">
+                    <img
+                      src={invoiceData.logoDataUrl}
+                      className="logo-preview-img"
                     />
-                    {invoiceData.logoDataUrl && (
-                      <div className="logo-preview">
-                        <img
-                          src={invoiceData.logoDataUrl}
-                          alt="Logo bisnis"
-                          className="logo-preview-img"
-                        />
-                      </div>
-                    )}
                   </div>
-                </div>
+                )}
               </div>
             </section>
 
+            {/* CLIENT SECTION */}
+            <section className="section">
+              <h2 className="section-title">Klien</h2>
+
+              <div className="field">
+                <label>No. Invoice</label>
+                <input
+                  className="input"
+                  placeholder="INV-001"
+                  value={invoiceData.invoiceNumber}
+                  onChange={(e) =>
+                    updateField("invoiceNumber", e.target.value)
+                  }
+                />
+              </div>
+
+              <div className="field">
+                <label>Nama Klien</label>
+                <input
+                  className="input"
+                  placeholder="Nama klien"
+                  value={invoiceData.client}
+                  onChange={(e) => updateField("client", e.target.value)}
+                />
+              </div>
+            </section>
+
+            {/* ITEMS */}
             <section className="section">
               <h2 className="section-title">Item Tagihan</h2>
 
               {invoiceData.items.map((item, index) => (
                 <div key={index} className="item-row">
-                  <div className="item-main">
-                    <input
-                      className="input"
-                      placeholder="Deskripsi pekerjaan / produk"
-                      value={item.description}
-                      onChange={(e) =>
-                        updateItem(index, "description", e.target.value)
-                      }
-                    />
-                  </div>
-                  <div className="item-amount">
+                  
+                  {/* Deskripsi */}
+                  <input
+                    className="input"
+                    placeholder="Deskripsi item"
+                    value={item.description}
+                    onChange={(e) =>
+                      updateItem(index, "description", e.target.value)
+                    }
+                  />
+
+                  {/* Qty + Harga + Delete */}
+                  <div className="row-two">
                     <input
                       className="input"
                       placeholder="Qty"
                       value={item.qty}
-                      onChange={(e) => updateItem(index, "qty", e.target.value)}
+                      onChange={(e) =>
+                        updateItem(index, "qty", e.target.value)
+                      }
                     />
-                  </div>
-                  <div className="item-amount">
+
                     <input
                       className="input input-amount"
                       placeholder="Harga / unit (Rp)"
@@ -296,19 +311,19 @@ export default function App() {
                         updateItem(index, "amount", e.target.value)
                       }
                     />
+
+                    <button
+                      type="button"
+                      className="btn-icon"
+                      onClick={() => removeItem(index)}
+                    >
+                      ✕
+                    </button>
                   </div>
-                  <button
-                    type="button"
-                    className="btn-icon"
-                    onClick={() => removeItem(index)}
-                    aria-label="Hapus item"
-                  >
-                    ✕
-                  </button>
                 </div>
               ))}
 
-              <button type="button" className="btn-secondary" onClick={addItem}>
+              <button className="btn-secondary" onClick={addItem}>
                 + Tambah item
               </button>
 
@@ -320,18 +335,19 @@ export default function App() {
               </div>
             </section>
 
+            {/* NOTES */}
             <section className="section">
               <h2 className="section-title">Catatan</h2>
               <textarea
                 className="textarea"
-                placeholder="Catatan tambahan untuk klien (opsional)"
+                placeholder="Catatan tambahan"
                 value={invoiceData.notes}
                 onChange={(e) => updateField("notes", e.target.value)}
               />
             </section>
           </div>
 
-          {/* RIGHT: LIVE PREVIEW */}
+          {/* RIGHT PREVIEW */}
           <div className="app-column preview-column">
             <div className="preview-card">
               <div className="preview-header">
@@ -352,15 +368,13 @@ export default function App() {
               </div>
 
               {invoiceData.businessAddress && (
-                <p className="preview-notes" style={{ marginBottom: 6 }}>
-                  {invoiceData.businessAddress}
-                </p>
+                <p className="preview-notes">{invoiceData.businessAddress}</p>
               )}
 
               <div className="preview-items">
                 {invoiceData.items.map((item, index) => {
-                  const qty = cleanNumber(item.qty || "0");
-                  const price = cleanNumber(item.amount || "0");
+                  const qty = cleanNumber(item.qty);
+                  const price = cleanNumber(item.amount);
                   const total = qty * price;
 
                   return (
@@ -370,7 +384,7 @@ export default function App() {
                           {item.description || "Deskripsi item"}
                         </p>
                         <p className="preview-notes">
-                          Qty {qty || 0} × {formattedCurrency(price)}
+                          Qty {qty} × {formattedCurrency(price)}
                         </p>
                       </div>
                       <p className="preview-item-amount">
@@ -388,6 +402,7 @@ export default function App() {
                     {formattedCurrency(subtotal)}
                   </span>
                 </div>
+
                 {invoiceData.notes && (
                   <p className="preview-notes">{invoiceData.notes}</p>
                 )}
