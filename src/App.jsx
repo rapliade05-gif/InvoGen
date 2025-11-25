@@ -5,8 +5,11 @@ export default function App() {
   const [invoiceData, setInvoiceData] = useState({
     invoiceNumber: "",
     client: "",
-    items: [{ description: "", amount: "" }],
+    businessName: "",
+    businessAddress: "",
+    items: [{ description: "", qty: "1", amount: "" }],
     notes: "",
+    logoDataUrl: "",
   });
 
   const updateField = (field, value) => {
@@ -20,20 +23,42 @@ export default function App() {
   };
 
   const addItem = () => {
-    setInvoiceData({
-      ...invoiceData,
-      items: [...invoiceData.items, { description: "", amount: "" }],
-    });
+    setInvoiceData((prev) => ({
+      ...prev,
+      items: [...prev.items, { description: "", qty: "1", amount: "" }],
+    }));
   };
 
   const removeItem = (index) => {
     const updated = invoiceData.items.filter((_, i) => i !== index);
-    setInvoiceData({ ...invoiceData, items: updated.length ? updated : [{ description: "", amount: "" }] });
+    setInvoiceData({
+      ...invoiceData,
+      items: updated.length ? updated : [{ description: "", qty: "1", amount: "" }],
+    });
+  };
+
+  const handleLogoUpload = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      updateField("logoDataUrl", reader.result);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const cleanNumber = (value) =>
+    parseFloat(value?.toString().replace(/[^0-9.-]/g, "")) || 0;
+
+  const lineTotal = (item) => {
+    const qty = cleanNumber(item.qty || "0");
+    const price = cleanNumber(item.amount || "0");
+    return qty * price;
   };
 
   const subtotal = invoiceData.items.reduce((sum, item) => {
-    const num = parseFloat(item.amount.toString().replace(/[^0-9.-]/g, ""));
-    return sum + (isNaN(num) ? 0 : num);
+    if (!item.description && !item.amount && !item.qty) return sum;
+    return sum + lineTotal(item);
   }, 0);
 
   const formattedCurrency = (value) =>
@@ -47,76 +72,107 @@ export default function App() {
     const doc = new jsPDF({ unit: "pt", format: "a4" });
     const pageWidth = doc.internal.pageSize.getWidth();
 
-    // Header background
+    // HEADER BACKGROUND
     doc.setFillColor(32, 41, 64);
-    doc.rect(0, 0, pageWidth, 90, "F");
+    doc.rect(0, 0, pageWidth, 100, "F");
 
-    // Header text
+    // LOGO (kalau ada)
+    if (invoiceData.logoDataUrl) {
+      try {
+        const imgType = invoiceData.logoDataUrl.includes("image/png")
+          ? "PNG"
+          : "JPEG";
+        doc.addImage(
+          invoiceData.logoDataUrl,
+          imgType,
+          pageWidth - 150,
+          24,
+          90,
+          52
+        );
+      } catch (e) {
+        console.warn("Gagal render logo di PDF:", e);
+      }
+    }
+
+    // HEADER TEXT
     doc.setTextColor(255, 255, 255);
     doc.setFontSize(22);
-    doc.text("InvoGen Invoice", 40, 50);
+    doc.text(invoiceData.businessName || "InvoGen Invoice", 40, 45);
 
     doc.setFontSize(11);
-    doc.text("Modern Invoice Generator", 40, 70);
+    const today = new Date().toLocaleDateString("id-ID");
+    doc.text(`Tanggal: ${today}`, 40, 63);
+    if (invoiceData.businessAddress) {
+      const addr = doc.splitTextToSize(
+        invoiceData.businessAddress,
+        pageWidth - 200
+      );
+      doc.text(addr, 40, 80);
+    }
 
-    // Body
+    // BODY INFO
     doc.setTextColor(33, 33, 33);
     doc.setFontSize(11);
 
-    const today = new Date().toLocaleDateString("id-ID");
+    let y = 120;
+    doc.text(`Invoice No : ${invoiceData.invoiceNumber || "-"}`, 40, y);
+    y += 18;
+    doc.text(`Ditagihkan ke : ${invoiceData.client || "-"}`, 40, y);
 
-    doc.text(`Invoice No: ${invoiceData.invoiceNumber || "-"}`, 40, 120);
-    doc.text(`Tanggal   : ${today}`, 40, 140);
-    doc.text(`Kepada    : ${invoiceData.client || "-"}`, 40, 160);
-
-    // Table header
-    const startY = 190;
+    // TABLE HEADER
+    y += 30;
     const colNoX = 40;
-    const colDescX = 80;
-    const colAmountX = pageWidth - 140;
+    const colDescX = 60;
+    const colQtyX = pageWidth - 240;
+    const colPriceX = pageWidth - 170;
+    const colTotalX = pageWidth - 60;
 
-    doc.setFontSize(11);
     doc.setFillColor(243, 244, 246);
-    doc.rect(30, startY - 18, pageWidth - 60, 26, "F");
+    doc.rect(30, y - 18, pageWidth - 60, 26, "F");
 
-    doc.text("No", colNoX, startY);
-    doc.text("Deskripsi", colDescX, startY);
-    doc.text("Jumlah", colAmountX, startY, { align: "right" });
+    doc.text("No", colNoX, y);
+    doc.text("Deskripsi", colDescX, y);
+    doc.text("Qty", colQtyX, y, { align: "right" });
+    doc.text("Harga", colPriceX, y, { align: "right" });
+    doc.text("Total", colTotalX, y, { align: "right" });
 
-    let y = startY + 20;
+    y += 22;
 
     invoiceData.items.forEach((item, index) => {
-      if (!item.description && !item.amount) return;
+      if (!item.description && !item.amount && !item.qty) return;
+
+      const qty = cleanNumber(item.qty || "0");
+      const price = cleanNumber(item.amount || "0");
+      const total = qty * price;
 
       doc.text(String(index + 1), colNoX, y);
       doc.text(item.description || "-", colDescX, y);
-      doc.text(
-        formattedCurrency(
-          parseFloat(item.amount.toString().replace(/[^0-9.-]/g, "")) || 0
-        ),
-        colAmountX,
-        y,
-        { align: "right" }
-      );
+      doc.text(String(qty || 0), colQtyX, y, { align: "right" });
+      doc.text(formattedCurrency(price), colPriceX, y, { align: "right" });
+      doc.text(formattedCurrency(total), colTotalX, y, { align: "right" });
 
       y += 20;
     });
 
-    // Subtotal / total
+    // SUBTOTAL / TOTAL
     y += 10;
     doc.line(30, y, pageWidth - 30, y);
     y += 20;
 
     doc.setFontSize(12);
-    doc.text("Total", colAmountX - 80, y);
-    doc.text(formattedCurrency(subtotal), colAmountX, y, { align: "right" });
+    doc.text("Total", colPriceX, y);
+    doc.text(formattedCurrency(subtotal), colTotalX, y, { align: "right" });
 
-    // Notes
+    // NOTES
     if (invoiceData.notes) {
-      y += 40;
+      y += 36;
       doc.setFontSize(11);
       doc.text("Catatan:", 40, y);
-      const splitNotes = doc.splitTextToSize(invoiceData.notes, pageWidth - 80);
+      const splitNotes = doc.splitTextToSize(
+        invoiceData.notes,
+        pageWidth - 80
+      );
       doc.text(splitNotes, 40, y + 18);
     }
 
@@ -133,22 +189,49 @@ export default function App() {
               Modern invoice generator — simple, clean, dan terlihat profesional.
             </p>
           </div>
-          <span className="app-badge">v1.0</span>
+          <span className="app-badge">v1.1</span>
         </header>
 
         <div className="app-layout">
-          {/* LEFT: Form */}
+          {/* LEFT: FORM */}
           <div className="app-column">
             <section className="section">
-              <h2 className="section-title">Informasi Invoice</h2>
+              <h2 className="section-title">Bisnis & Klien</h2>
               <div className="field-grid">
+                <div className="field">
+                  <label>Nama Bisnis</label>
+                  <input
+                    className="input"
+                    placeholder="Nama usaha / brand"
+                    value={invoiceData.businessName}
+                    onChange={(e) =>
+                      updateField("businessName", e.target.value)
+                    }
+                  />
+                </div>
                 <div className="field">
                   <label>No. Invoice</label>
                   <input
                     className="input"
                     placeholder="Contoh: INV-001"
                     value={invoiceData.invoiceNumber}
-                    onChange={(e) => updateField("invoiceNumber", e.target.value)}
+                    onChange={(e) =>
+                      updateField("invoiceNumber", e.target.value)
+                    }
+                  />
+                </div>
+              </div>
+
+              <div className="field-grid" style={{ marginTop: 8 }}>
+                <div className="field">
+                  <label>Alamat Bisnis</label>
+                  <textarea
+                    className="textarea"
+                    placeholder="Alamat lengkap bisnis untuk ditampilkan di invoice"
+                    value={invoiceData.businessAddress}
+                    onChange={(e) =>
+                      updateField("businessAddress", e.target.value)
+                    }
                   />
                 </div>
                 <div className="field">
@@ -159,6 +242,24 @@ export default function App() {
                     value={invoiceData.client}
                     onChange={(e) => updateField("client", e.target.value)}
                   />
+                  <div className="logo-upload">
+                    <label className="logo-label">Logo Bisnis (opsional)</label>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="input"
+                      onChange={handleLogoUpload}
+                    />
+                    {invoiceData.logoDataUrl && (
+                      <div className="logo-preview">
+                        <img
+                          src={invoiceData.logoDataUrl}
+                          alt="Logo bisnis"
+                          className="logo-preview-img"
+                        />
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             </section>
@@ -180,10 +281,20 @@ export default function App() {
                   </div>
                   <div className="item-amount">
                     <input
+                      className="input"
+                      placeholder="Qty"
+                      value={item.qty}
+                      onChange={(e) => updateItem(index, "qty", e.target.value)}
+                    />
+                  </div>
+                  <div className="item-amount">
+                    <input
                       className="input input-amount"
-                      placeholder="Nominal (Rp)"
+                      placeholder="Harga / unit (Rp)"
                       value={item.amount}
-                      onChange={(e) => updateItem(index, "amount", e.target.value)}
+                      onChange={(e) =>
+                        updateItem(index, "amount", e.target.value)
+                      }
                     />
                   </div>
                   <button
@@ -203,7 +314,9 @@ export default function App() {
 
               <div className="total-row">
                 <span>Perkiraan Total</span>
-                <span className="total-value">{formattedCurrency(subtotal)}</span>
+                <span className="total-value">
+                  {formattedCurrency(subtotal)}
+                </span>
               </div>
             </section>
 
@@ -218,12 +331,14 @@ export default function App() {
             </section>
           </div>
 
-          {/* RIGHT: Live preview */}
+          {/* RIGHT: LIVE PREVIEW */}
           <div className="app-column preview-column">
             <div className="preview-card">
               <div className="preview-header">
                 <div>
-                  <p className="preview-label">Invoice</p>
+                  <p className="preview-label">
+                    {invoiceData.businessName || "Nama Bisnis"}
+                  </p>
                   <p className="preview-id">
                     {invoiceData.invoiceNumber || "INV-XXX"}
                   </p>
@@ -236,25 +351,34 @@ export default function App() {
                 </div>
               </div>
 
+              {invoiceData.businessAddress && (
+                <p className="preview-notes" style={{ marginBottom: 6 }}>
+                  {invoiceData.businessAddress}
+                </p>
+              )}
+
               <div className="preview-items">
-                {invoiceData.items.map((item, index) => (
-                  <div key={index} className="preview-item-row">
-                    <div>
-                      <p className="preview-item-title">
-                        {item.description || "Deskripsi item"}
+                {invoiceData.items.map((item, index) => {
+                  const qty = cleanNumber(item.qty || "0");
+                  const price = cleanNumber(item.amount || "0");
+                  const total = qty * price;
+
+                  return (
+                    <div key={index} className="preview-item-row">
+                      <div>
+                        <p className="preview-item-title">
+                          {item.description || "Deskripsi item"}
+                        </p>
+                        <p className="preview-notes">
+                          Qty {qty || 0} × {formattedCurrency(price)}
+                        </p>
+                      </div>
+                      <p className="preview-item-amount">
+                        {formattedCurrency(total)}
                       </p>
                     </div>
-                    <p className="preview-item-amount">
-                      {item.amount
-                        ? formattedCurrency(
-                            parseFloat(
-                              item.amount.toString().replace(/[^0-9.-]/g, "")
-                            ) || 0
-                          )
-                        : formattedCurrency(0)}
-                    </p>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
 
               <div className="preview-footer">
